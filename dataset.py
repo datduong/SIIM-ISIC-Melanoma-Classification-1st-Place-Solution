@@ -25,16 +25,16 @@ class MelanomaDataset(Dataset):
 
         row = self.csv.iloc[index]
 
-        image = cv2.imread(row.filepath)
+        image = cv2.imread(row.filepath) # ! read a file path from @csv, so don't need different folders, but have to reindex labels
         image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
         if self.transform is not None:
-            res = self.transform(image=image)
+            res = self.transform(image=image) # ! uses albumentations
             image = res['image'].astype(np.float32)
         else:
             image = image.astype(np.float32)
 
-        image = image.transpose(2, 0, 1)
+        image = image.transpose(2, 0, 1) # makes channel x h x w instead of h x w x c
 
         if self.use_meta:
             data = (torch.tensor(image).float(), torch.tensor(self.csv.iloc[index][self.meta_features]).float())
@@ -132,12 +132,12 @@ def get_df(kernel_type, out_dim, data_dir, data_folder, use_meta):
 
     # 2020 data
     df_train = pd.read_csv(os.path.join(data_dir, f'jpeg-melanoma-{data_folder}x{data_folder}', 'train.csv'))
-    df_train = df_train[df_train['tfrecord'] != -1].reset_index(drop=True)
+    df_train = df_train[df_train['tfrecord'] != -1].reset_index(drop=True) # ! remove duplicated based on https://www.kaggle.com/c/siim-isic-melanoma-classification/discussion/165526
     df_train['filepath'] = df_train['image_name'].apply(lambda x: os.path.join(data_dir, f'jpeg-melanoma-{data_folder}x{data_folder}/train', f'{x}.jpg'))
 
     if 'newfold' in kernel_type:
-        tfrecord2fold = {
-            8:0, 5:0, 11:0,
+        tfrecord2fold = { # based on https://www.kaggle.com/c/siim-isic-melanoma-classification/discussion/165526
+            8:0, 5:0, 11:0, # each record number is divided via "3-layer stratification"
             7:1, 0:1, 6:1,
             10:2, 12:2, 13:2,
             9:3, 1:3, 3:3,
@@ -161,11 +161,11 @@ def get_df(kernel_type, out_dim, data_dir, data_folder, use_meta):
     df_train2 = df_train2[df_train2['tfrecord'] >= 0].reset_index(drop=True)
     df_train2['filepath'] = df_train2['image_name'].apply(lambda x: os.path.join(data_dir, f'jpeg-isic2019-{data_folder}x{data_folder}/train', f'{x}.jpg'))
     if 'newfold' in kernel_type:
-        df_train2['tfrecord'] = df_train2['tfrecord'] % 15
+        df_train2['tfrecord'] = df_train2['tfrecord'] % 15 # ! there are 15 "buckets" in 2020, so they randomly assign ?
         df_train2['fold'] = df_train2['tfrecord'].map(tfrecord2fold)
     else:
         df_train2['fold'] = df_train2['tfrecord'] % 5
-    df_train2['is_ext'] = 1
+    df_train2['is_ext'] = 1 # ! external data (2019 and older)
 
     # Preprocess Target
     df_train['diagnosis']  = df_train['diagnosis'].apply(lambda x: x.replace('seborrheic keratosis', 'BKL'))

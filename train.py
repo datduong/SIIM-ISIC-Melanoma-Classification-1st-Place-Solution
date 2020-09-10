@@ -154,8 +154,8 @@ def val_epoch(model, loader, mel_idx, is_ext=None, n_test=1, get_output=False):
         return LOGITS, PROBS
     else:
         acc = (PROBS.argmax(1) == TARGETS).mean() * 100.
-        auc = roc_auc_score((TARGETS == mel_idx).astype(float), PROBS[:, mel_idx])
-        auc_20 = roc_auc_score((TARGETS[is_ext == 0] == mel_idx).astype(float), PROBS[is_ext == 0, mel_idx])
+        auc = roc_auc_score((TARGETS == mel_idx).astype(float), PROBS[:, mel_idx]) #! auc for whole old+new data
+        auc_20 = roc_auc_score((TARGETS[is_ext == 0] == mel_idx).astype(float), PROBS[is_ext == 0, mel_idx]) #! auc this year 2020
         return val_loss, acc, auc, auc_20
 
 
@@ -166,7 +166,7 @@ def run(fold, df, meta_features, n_meta_features, transforms_train, transforms_v
         df_train = df[df['fold'] != fold].sample(args.batch_size * 5)
         df_valid = df[df['fold'] == fold].sample(args.batch_size * 5)
     else:
-        df_train = df[df['fold'] != fold]
+        df_train = df[df['fold'] != fold] # ! take out a fold and keep it as valid
         df_valid = df[df['fold'] == fold]
 
     dataset_train = MelanomaDataset(df_train, 'train', meta_features, transform=transforms_train)
@@ -217,9 +217,9 @@ def run(fold, df, meta_features, n_meta_features, transforms_train, transforms_v
         scheduler_warmup.step()    
         if epoch==2: scheduler_warmup.step() # bug workaround   
             
-        if auc > auc_max:
+        if auc > auc_max: # ! saving 2 types of model, one on old data, the other year 2020 
             print('auc_max ({:.6f} --> {:.6f}). Saving model ...'.format(auc_max, auc))
-            torch.save(model.state_dict(), model_file)
+            torch.save(model.state_dict(), model_file) ## @model is the same model in both cases, just eval them separately
             auc_max = auc
         if auc_20 > auc_20_max:
             print('auc_20_max ({:.6f} --> {:.6f}). Saving model ...'.format(auc_20_max, auc_20))
@@ -242,7 +242,7 @@ def main():
     transforms_train, transforms_val = get_transforms(args.image_size)
 
     folds = [int(i) for i in args.fold.split(',')]
-    for fold in folds:
+    for fold in folds: # ! run many folds
         run(fold, df, meta_features, n_meta_features, transforms_train, transforms_val, mel_idx)
 
 

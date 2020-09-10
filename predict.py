@@ -67,10 +67,10 @@ def main():
     dataset_test = MelanomaDataset(df_test, 'test', meta_features, transform=transforms_val)
     test_loader = torch.utils.data.DataLoader(dataset_test, batch_size=args.batch_size, num_workers=args.num_workers)
 
-    PROBS = []
-    for fold in range(5):
+    PROBS = [] ## ! this is defined twice?
+    for fold in range(5): # ! use model built from each fold
 
-        if args.eval == 'best':
+        if args.eval == 'best': # ! default
             model_file = os.path.join(args.model_dir, f'{args.kernel_type}_best_fold{fold}.pth')
         elif args.eval == 'best_20':
             model_file = os.path.join(args.model_dir, f'{args.kernel_type}_best_20_fold{fold}.pth')
@@ -97,15 +97,15 @@ def main():
 
         model.eval()
 
-        PROBS = []
+        PROBS = [] ## ! this is defined twice?
         with torch.no_grad():
             for (data) in tqdm(test_loader):
 
                 if args.use_meta:
                     data, meta = data
                     data, meta = data.to(device), meta.to(device)
-                    probs = torch.zeros((data.shape[0], args.out_dim)).to(device)
-                    for I in range(args.n_test):
+                    probs = torch.zeros((data.shape[0], args.out_dim)).to(device) # batch x label 
+                    for I in range(args.n_test): # ! fliping images 8 times.
                         l = model(get_trans(data, I), meta)
                         probs += l.softmax(1)
                 else:   
@@ -115,13 +115,13 @@ def main():
                         l = model(get_trans(data, I))
                         probs += l.softmax(1)
 
-                probs /= args.n_test
+                probs /= args.n_test # ! average over all the flips
 
-                PROBS.append(probs.detach().cpu())
+                PROBS.append(probs.detach().cpu()) ## append prediction for this batch
 
-        PROBS = torch.cat(PROBS).numpy()
+        PROBS = torch.cat(PROBS).numpy() ## put in numpy format, PROBS is total_obs_size x num_labels
 
-    df_test['target'] = PROBS[:, mel_idx]
+    df_test['target'] = PROBS[:, mel_idx] # ! takes @mel_idx column
     df_test[['image_name', 'target']].to_csv(os.path.join(args.sub_dir, f'sub_{args.kernel_type}_{args.eval}.csv'), index=False)
 
 
