@@ -135,6 +135,7 @@ def get_df(kernel_type, out_dim, data_dir, data_folder, use_meta):
     df_train = df_train[df_train['tfrecord'] != -1].reset_index(drop=True) # ! remove duplicated based on https://www.kaggle.com/c/siim-isic-melanoma-classification/discussion/165526
     df_train['filepath'] = df_train['image_name'].apply(lambda x: os.path.join(data_dir, f'jpeg-melanoma-{data_folder}x{data_folder}/train', f'{x}.jpg'))
 
+    # ! @kernel_type contains the name "new_fold", @kernel_type is just their own naming convention
     if 'newfold' in kernel_type:
         tfrecord2fold = { # based on https://www.kaggle.com/c/siim-isic-melanoma-classification/discussion/165526
             8:0, 5:0, 11:0, # each record number is divided via "3-layer stratification"
