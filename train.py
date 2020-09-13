@@ -5,7 +5,7 @@ import argparse
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, balanced_accuracy_score
 from sklearn.model_selection import StratifiedKFold
 import torch
 from torch.utils.data import DataLoader, Dataset
@@ -156,7 +156,21 @@ def val_epoch(model, loader, mel_idx, is_ext=None, n_test=1, get_output=False):
         acc = (PROBS.argmax(1) == TARGETS).mean() * 100.
         auc = roc_auc_score((TARGETS == mel_idx).astype(float), PROBS[:, mel_idx]) #! auc for whole old+new data
         auc_20 = roc_auc_score((TARGETS[is_ext == 0] == mel_idx).astype(float), PROBS[is_ext == 0, mel_idx]) #! auc this year 2020
-        return val_loss, acc, auc, auc_20
+        # 
+        bal_acc = compute_balanced_accuracy_score(PROBS, TARGETS)
+        bal_acc_20 = compute_balanced_accuracy_score(PROBS[is_ext == 0], TARGETS[is_ext == 0])
+        return val_loss, acc, auc, auc_20, bal_acc, bal_acc_20
+
+
+def compute_balanced_accuracy_score (prediction,target): 
+    # target is array of label index 
+    # (11582,)
+    # [8 8 8 ... 7 7 2]
+    # prediction.argmax(axis=1) # get index of max
+    # print (prediction.shape)
+    # print (set(prediction.argmax(axis=1))) ## what do we predict? 
+    # print (set(target)) # UserWarning: y_pred contains classes not in y_true ??
+    return balanced_accuracy_score (target, prediction.argmax(axis=1))
 
 
 def run(fold, df, meta_features, n_meta_features, transforms_train, transforms_val, mel_idx):
@@ -173,7 +187,7 @@ def run(fold, df, meta_features, n_meta_features, transforms_train, transforms_v
     dataset_valid = MelanomaDataset(df_valid, 'valid', meta_features, transform=transforms_val)
     train_loader = torch.utils.data.DataLoader(dataset_train, batch_size=args.batch_size, sampler=RandomSampler(dataset_train), num_workers=args.num_workers)
     valid_loader = torch.utils.data.DataLoader(dataset_valid, batch_size=args.batch_size, num_workers=args.num_workers)
-
+    
     model = ModelClass(
         args.enet_type,
         n_meta_features=n_meta_features,
@@ -199,7 +213,8 @@ def run(fold, df, meta_features, n_meta_features, transforms_train, transforms_v
 #     scheduler_cosine = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.n_epochs - 1)
     scheduler_cosine = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, args.n_epochs - 1)
     scheduler_warmup = GradualWarmupSchedulerV2(optimizer, multiplier=10, total_epoch=1, after_scheduler=scheduler_cosine)
-    
+
+    print('train and dev data size')
     print(len(dataset_train), len(dataset_valid))
 
     for epoch in range(1, args.n_epochs + 1):
@@ -207,9 +222,9 @@ def run(fold, df, meta_features, n_meta_features, transforms_train, transforms_v
 #         scheduler_warmup.step(epoch - 1)
 
         train_loss = train_epoch(model, train_loader, optimizer)
-        val_loss, acc, auc, auc_20 = val_epoch(model, valid_loader, mel_idx, is_ext=df_valid['is_ext'].values)
+        val_loss, acc, auc, auc_20, bal_acc, bal_acc_20 = val_epoch(model, valid_loader, mel_idx, is_ext=df_valid['is_ext'].values)
 
-        content = time.ctime() + ' ' + f'Fold {fold}, Epoch {epoch}, lr: {optimizer.param_groups[0]["lr"]:.7f}, train loss: {train_loss:.5f}, valid loss: {(val_loss):.5f}, acc: {(acc):.4f}, auc: {(auc):.6f}, auc_20: {(auc_20):.6f}.'
+        content = time.ctime() + ' ' + f'Fold {fold}, Epoch {epoch}, lr: {optimizer.param_groups[0]["lr"]:.7f}, train loss: {train_loss:.5f}, valid loss: {(val_loss):.5f}, acc: {(acc):.4f}, auc: {(auc):.6f}, auc_20: {(auc_20):.6f}, bal_acc {(bal_acc):.6f}, bal_acc_20 {(bal_acc_20):.6f}'
         print(content)
         with open(os.path.join(args.log_dir, f'log_{args.kernel_type}.txt'), 'a') as appender:
             appender.write(content + '\n')
@@ -226,6 +241,8 @@ def run(fold, df, meta_features, n_meta_features, transforms_train, transforms_v
             torch.save(model.state_dict(), model_file2)
             auc_20_max = auc_20
 
+        # exit() # ! debug 
+        
     torch.save(model.state_dict(), model_file3)
 
 
@@ -242,11 +259,12 @@ def main():
     transforms_train, transforms_val = get_transforms(args.image_size)
 
     folds = [int(i) for i in args.fold.split(',')]
+    print ('folds {}'.format(folds))
     for fold in folds: # ! run many folds
-        try : 
-            run(fold, df, meta_features, n_meta_features, transforms_train, transforms_val, mel_idx)
-        except: 
-            pass # so we move to next fold, can be stuck, see error
+        # try : 
+        run(fold, df, meta_features, n_meta_features, transforms_train, transforms_val, mel_idx)
+        # except: 
+        #     pass # so we move to next fold, can be stuck, see error
 
 
 if __name__ == '__main__':

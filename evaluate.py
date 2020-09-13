@@ -7,7 +7,7 @@ import pandas as pd
 import cv2
 import PIL.Image
 from tqdm import tqdm
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, balanced_accuracy_score
 from sklearn.model_selection import StratifiedKFold
 import torch
 from torch.utils.data import DataLoader, Dataset
@@ -91,13 +91,28 @@ def val_epoch(model, loader, mel_idx, is_ext=None, n_test=1, get_output=False):
     PROBS = torch.cat(PROBS).numpy()
     TARGETS = torch.cat(TARGETS).numpy()
 
-    if get_output:
-        return LOGITS, PROBS
-    else:
-        acc = (PROBS.argmax(1) == TARGETS).mean() * 100.
-        auc = roc_auc_score((TARGETS == mel_idx).astype(float), PROBS[:, mel_idx])
-        auc_20 = roc_auc_score((TARGETS[is_ext == 0] == mel_idx).astype(float), PROBS[is_ext == 0, mel_idx])
-        return val_loss, acc, auc, auc_20
+    # if get_output:
+    #     return LOGITS, PROBS
+    # else:
+    acc = (PROBS.argmax(1) == TARGETS).mean() * 100.
+    auc = roc_auc_score((TARGETS == mel_idx).astype(float), PROBS[:, mel_idx])
+    auc_20 = roc_auc_score((TARGETS[is_ext == 0] == mel_idx).astype(float), PROBS[is_ext == 0, mel_idx])
+    # 
+    bal_acc = compute_balanced_accuracy_score(PROBS, TARGETS)
+    bal_acc_20 = compute_balanced_accuracy_score(PROBS[is_ext == 0], TARGETS[is_ext == 0])
+    return LOGITS, PROBS, val_loss, acc, auc, auc_20, bal_acc, bal_acc_20
+
+
+
+def compute_balanced_accuracy_score (prediction,target): 
+    # target is array of label index 
+    # (11582,)
+    # [8 8 8 ... 7 7 2]
+    # prediction.argmax(axis=1) # get index of max
+    # print (prediction.shape)
+    # print (set(prediction.argmax(axis=1))) ## what do we predict? 
+    # print (set(target)) # UserWarning: y_pred contains classes not in y_true ??
+    return balanced_accuracy_score (target, prediction.argmax(axis=1))
 
 
 
@@ -155,10 +170,17 @@ def main():
 
         model.eval()
 
-        this_LOGITS, this_PROBS = val_epoch(model, valid_loader, mel_idx, is_ext=df_valid['is_ext'].values, n_test=8, get_output=True)
+        this_LOGITS, this_PROBS, val_loss, acc, auc, auc_20, bal_acc, bal_acc_20 = val_epoch(model, valid_loader, mel_idx, is_ext=df_valid['is_ext'].values, n_test=8, get_output=True)
         LOGITS.append(this_LOGITS)
         PROBS.append(this_PROBS)
         dfs.append(df_valid)
+
+        # print 
+        content = time.ctime() + ' ' + f'Fold {fold}, valid loss: {(val_loss):.5f}, acc: {(acc):.4f}, auc: {(auc):.6f}, auc_20: {(auc_20):.6f}, bal_acc {(bal_acc):.6f}, bal_acc_20 {(bal_acc_20):.6f}'
+        print(content)
+        with open(os.path.join(args.log_dir, f'log_{args.kernel_type}.txt'), 'a') as appender:
+            appender.write(content + '\n')
+        
 
     dfs = pd.concat(dfs).reset_index(drop=True)
     dfs['pred'] = np.concatenate(PROBS).squeeze()[:, mel_idx]

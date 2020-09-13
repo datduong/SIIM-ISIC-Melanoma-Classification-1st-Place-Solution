@@ -193,6 +193,9 @@ def get_df(kernel_type, out_dim, data_dir, data_folder, use_meta):
     # concat train data
     df_train = pd.concat([df_train, df_train2]).reset_index(drop=True)
 
+    # ! count each disease in train 
+    print ( 'df train labels {}'.format ( df_train.groupby('diagnosis').count() ) ) 
+    
     # test data
     df_test = pd.read_csv(os.path.join(data_dir, f'jpeg-melanoma-{data_folder}x{data_folder}', 'test.csv'))
     df_test['filepath'] = df_test['image_name'].apply(lambda x: os.path.join(data_dir, f'jpeg-melanoma-{data_folder}x{data_folder}/test', f'{x}.jpg'))
