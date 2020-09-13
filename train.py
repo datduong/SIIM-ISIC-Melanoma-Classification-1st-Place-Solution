@@ -243,7 +243,10 @@ def main():
 
     folds = [int(i) for i in args.fold.split(',')]
     for fold in folds: # ! run many folds
-        run(fold, df, meta_features, n_meta_features, transforms_train, transforms_val, mel_idx)
+        try : 
+            run(fold, df, meta_features, n_meta_features, transforms_train, transforms_val, mel_idx)
+        except: 
+            pass # so we move to next fold, can be stuck, see error
 
 
 if __name__ == '__main__':
