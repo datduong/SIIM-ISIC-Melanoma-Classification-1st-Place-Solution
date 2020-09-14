@@ -13,6 +13,6 @@ logdir=/data/duongdb/ISIC2020-SkinCancerBinary/9c_b7ns_1e_576_ext_15ep_newfold34
 
 # ! have to reduce batch to use 4 gpu
 
-python train.py --kernel-type 9c_b7ns_1e_576_ext_15ep_newfold --data-dir $datadir --data-folder 768 --image-size 576 --enet-type tf_efficientnet_b7_ns --init-lr 1e-5 --use-amp --CUDA_VISIBLE_DEVICES 0,1,2,3 --model-dir $modeldir --log-dir $logdir --num-workers 8 --batch-size 24 --fold '3,4'
+python train.py --kernel-type 9c_b7ns_1e_576_ext_15ep_newfold --data-dir $datadir --data-folder 768 --image-size 576 --enet-type tf_efficientnet_b7_ns --init-lr 1e-5 --use-amp --CUDA_VISIBLE_DEVICES 0,1,2,3 --model-dir $modeldir --log-dir $logdir --num-workers 8 --batch-size 28 --fold '3,4'
 
 
